@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum VerificationPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  password String?
+  avatarUrl    String?
+
+  isVerified   Boolean  @default(false)
+  isBanned     Boolean  @default(false)
+
+  role         Role     @default(USER)
+
+  verificationCodes VerificationCode?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+}
+
+model VerificationCode {
+  id        String              @id @default(cuid())
+  code      String
+  purpose   VerificationPurpose
+  expiresAt DateTime
+  userId    String              @unique
+  user      User                @relation(fields: [userId], references: [id])
+  createdAt DateTime            @default(now())
+}
