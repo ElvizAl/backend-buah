@@ -17,19 +17,22 @@ const app = new Hono()
 	.use(
 		"*",
 		cors({
-			origin: (origin) => {
-				const allowedOrigins = [
+			origin: (origin, c) => {
+				const allowed = [
 					"http://localhost:3000",
-					env.FRONTEND_URL,
-				].filter(Boolean);
-
-				// Jika origin ada di daftar, kembalikan origin tersebut
-				if (allowedOrigins.includes(origin)) {
+					"https://frontend-buah.vercel.app",
+					"https://glotomotif.my.id",
+					"https://vercel.app",
+				];
+				// Allow Vercel preview deployments
+				if (
+					!origin ||
+					allowed.includes(origin) ||
+					origin.endsWith(".vercel.app")
+				) {
 					return origin;
 				}
-
-				// Untuk request tanpa origin (server-to-server), izinkan
-				return allowedOrigins[0];
+				return "https://frontend-buah.vercel.app/register";
 			},
 			allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 			allowHeaders: ["Content-Type", "Authorization"],
