@@ -3,7 +3,7 @@ import { z } from "zod";
 export const registerSchema = z.object({
 	name: z.string().min(2, "Nama minimal 2 karakter"),
 	email: z.email("Format email tidak valid"),
-	password: z.string().min(6, "Kata sandi minimal 6 karakter"),
+	password: z.string().min(8, "Kata sandi minimal 8 karakter"),
 });
 
 export const verifyEmailOtpSchema = z.object({
@@ -28,7 +28,7 @@ export const resetPasswordSchema = z
 	.object({
 		email: z.email("Format email tidak valid"),
 		code: z.string().length(6, "Kode OTP harus 6 karakter"),
-		newPassword: z.string().min(6, "Kata sandi baru minimal 6 karakter"),
+		newPassword: z.string().min(8, "Kata sandi baru minimal 8 karakter"),
 		confirmPassword: z.string().min(1, "Konfirmasi kata sandi wajib diisi"),
 	})
 	.refine((data) => data.newPassword === data.confirmPassword, {
@@ -48,7 +48,7 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export const changePasswordSchema = z
 	.object({
 		currentPassword: z.string().min(1, "Password lama wajib diisi"),
-		newPassword: z.string().min(6, "Password baru minimal 6 karakter"),
+		newPassword: z.string().min(8, "Password baru minimal 8 karakter"),
 		confirmPassword: z.string().min(1, "Konfirmasi password wajib diisi"),
 	})
 	.refine((data) => data.newPassword === data.confirmPassword, {

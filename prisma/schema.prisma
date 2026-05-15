@@ -29,7 +29,8 @@ model User {
 
   role         Role     @default(USER)
 
-  verificationCodes VerificationCode?
+  verificationCodes VerificationCode[]
+  refreshTokens     RefreshToken[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -41,7 +42,18 @@ model VerificationCode {
   code      String
   purpose   VerificationPurpose
   expiresAt DateTime
-  userId    String              @unique
+  userId    String
   user      User                @relation(fields: [userId], references: [id])
   createdAt DateTime            @default(now())
+
+  @@unique([userId, purpose])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }

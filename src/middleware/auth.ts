@@ -1,19 +1,26 @@
 import { createMiddleware } from "hono/factory";
+import { getCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import type { Role } from "../generated/prisma/enums";
 import type { AppVariables } from "../types";
 import { verifyAccessToken } from "../utils/jwt";
 
 export const requireAuth = createMiddleware<AppVariables>(async (c, next) => {
+	// Cek token dari Authorization header terlebih dahulu, lalu dari cookie
 	const authHeader = c.req.header("Authorization");
+	let token: string | undefined;
 
-	if (!authHeader || !authHeader.startsWith("Bearer ")) {
+	if (authHeader && authHeader.startsWith("Bearer ")) {
+		token = authHeader.split(" ")[1];
+	} else {
+		token = getCookie(c, "accessToken");
+	}
+
+	if (!token) {
 		throw new HTTPException(401, {
 			message: "Unauthorized - Token tidak ditemukan",
 		});
 	}
-
-	const token = authHeader.split(" ")[1];
 
 	try {
 		const payload = verifyAccessToken(token);

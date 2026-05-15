@@ -2,7 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { type Role, VerificationPurpose } from "../../generated/prisma/enums";
 import { sendOtpEmail, upsertVerificationCode } from "../../lib/email";
 import { hashPassword, verifyPassword } from "../../utils/hash";
-import { signAccessToken } from "../../utils/jwt";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { prisma } from "../../utils/prisma";
 import type {
 	ChangePasswordInput,
@@ -63,8 +63,10 @@ export async function verifyEmailOtpService(data: VerifyEmailOtpInput) {
 
 	const verificationCode = await prisma.verificationCode.findUnique({
 		where: {
-			userId: user.id,
-			purpose: VerificationPurpose.VERIFY_EMAIL,
+			userId_purpose: {
+				userId: user.id,
+				purpose: VerificationPurpose.VERIFY_EMAIL,
+			},
 		},
 	});
 
@@ -163,9 +165,24 @@ export async function loginService(data: LoginInput) {
 		role: existingUser.role,
 	});
 
+	const refreshToken = signRefreshToken({
+		sub: existingUser.id,
+		type: "refresh",
+	});
+
+	// Simpan refresh token ke database
+	await prisma.refreshToken.create({
+		data: {
+			token: refreshToken,
+			userId: existingUser.id,
+			expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 hari
+		},
+	});
+
 	return {
 		message: "Login berhasil",
 		accessToken,
+		refreshToken,
 	};
 }
 
@@ -198,8 +215,10 @@ export async function resetPasswordService(data: ResetPasswordInput) {
 
 	const verificationCode = await prisma.verificationCode.findUnique({
 		where: {
-			userId: user.id,
-			purpose: VerificationPurpose.RESET_PASSWORD,
+			userId_purpose: {
+				userId: user.id,
+				purpose: VerificationPurpose.RESET_PASSWORD,
+			},
 		},
 	});
 
@@ -267,4 +286,80 @@ export async function changePasswordService(
 	});
 
 	return { message: "Password berhasil diubah" };
+}
+
+export async function refreshTokenService(token: string) {
+	// Verify JWT refresh token
+	const payload = verifyRefreshToken(token);
+
+	// Cek apakah refresh token ada di database
+	const storedToken = await prisma.refreshToken.findUnique({
+		where: { token },
+	});
+
+	if (!storedToken) {
+		throw new HTTPException(401, {
+			message: "Refresh token tidak ditemukan",
+		});
+	}
+
+	if (storedToken.expiresAt < new Date()) {
+		await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+		throw new HTTPException(401, {
+			message: "Refresh token sudah kadaluarsa",
+		});
+	}
+
+	// Cek user masih ada dan tidak dibanned
+	const user = await prisma.user.findUnique({
+		where: { id: payload.sub },
+	});
+
+	if (!user) {
+		throw new HTTPException(404, { message: "User tidak ditemukan" });
+	}
+
+	if (user.isBanned) {
+		// Hapus semua refresh token user yang dibanned
+		await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+		throw new HTTPException(403, { message: "User dibanned" });
+	}
+
+	// Hapus refresh token lama (rotation)
+	await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+
+	// Buat access token & refresh token baru
+	const newAccessToken = signAccessToken({
+		sub: user.id,
+		email: user.email,
+		role: user.role,
+	});
+
+	const newRefreshToken = signRefreshToken({
+		sub: user.id,
+		type: "refresh",
+	});
+
+	// Simpan refresh token baru
+	await prisma.refreshToken.create({
+		data: {
+			token: newRefreshToken,
+			userId: user.id,
+			expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 hari
+		},
+	});
+
+	return {
+		accessToken: newAccessToken,
+		refreshToken: newRefreshToken,
+	};
+}
+
+export async function logoutService(refreshToken: string) {
+	// Hapus refresh token dari database
+	await prisma.refreshToken.deleteMany({
+		where: { token: refreshToken },
+	});
+
+	return { message: "Logout berhasil" };
 }
