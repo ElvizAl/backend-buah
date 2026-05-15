@@ -54,8 +54,10 @@ export async function upsertVerificationCode(
 
 	return prisma.verificationCode.upsert({
 		where: {
-			userId,
-			purpose,
+			userId_purpose: {
+				userId,
+				purpose,
+			},
 		},
 		update: {
 			code,
