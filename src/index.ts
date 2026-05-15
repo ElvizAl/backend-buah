@@ -17,10 +17,20 @@ const app = new Hono()
 	.use(
 		"*",
 		cors({
-			origin: [
-				"http://localhost:3000",
-				env.FRONTEND_URL || "http://localhost:3000",
-			],
+			origin: (origin) => {
+				const allowedOrigins = [
+					"http://localhost:3000",
+					env.FRONTEND_URL,
+				].filter(Boolean);
+
+				// Jika origin ada di daftar, kembalikan origin tersebut
+				if (allowedOrigins.includes(origin)) {
+					return origin;
+				}
+
+				// Untuk request tanpa origin (server-to-server), izinkan
+				return allowedOrigins[0];
+			},
 			allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 			allowHeaders: ["Content-Type", "Authorization"],
 			credentials: true,
@@ -46,9 +56,15 @@ const app = new Hono()
 		return c.json({ message: "Internal Server Error" }, 500);
 	});
 
-serve({
-  fetch: app.fetch,
-  port: 8000
-}, (info) => {
-  console.log(`Server is running on http://localhost:${info.port}`)
-})
+// Untuk development lokal
+if (process.env.NODE_ENV !== "production") {
+	serve({
+		fetch: app.fetch,
+		port: 8000
+	}, (info) => {
+		console.log(`Server is running on http://localhost:${info.port}`)
+	})
+}
+
+// Export untuk Vercel serverless
+export default app
