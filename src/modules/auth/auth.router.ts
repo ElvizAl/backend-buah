@@ -15,6 +15,7 @@ import {
 import {
 	changePasswordService,
 	forgotPasswordService,
+	getCurrentUserService,
 	googleCallbackService,
 	loginService,
 	logoutService,
@@ -145,6 +146,12 @@ export const authRouter = new Hono()
 			return c.json(result, 200);
 		},
 	)
+
+	.get("/me", requireAuth, async (c) => {
+		const userId = c.get("user").sub;
+		const result = await getCurrentUserService(userId);
+		return c.json(result, 200);
+	})
 
 	.post(
 		"/change-password",
