@@ -363,3 +363,60 @@ export async function logoutService(refreshToken: string) {
 
 	return { message: "Logout berhasil" };
 }
+
+export async function googleCallbackService(googleUser: {
+  email: string;
+  name: string;
+  picture?: string;
+}) {
+  // 1. Cek apakah user dibanned
+  const existingUser = await prisma.user.findUnique({
+    where: { email: googleUser.email },
+  });
+
+  if (existingUser?.isBanned) {
+    throw new HTTPException(403, { message: "User dibanned" });
+  }
+
+  // 2. Upsert user (buat baru jika belum ada, atau pakai yang sudah ada)
+  const user = await prisma.user.upsert({
+    where: { email: googleUser.email },
+    update: {
+      ...(googleUser.picture && { avatarUrl: googleUser.picture }),
+    },
+    create: {
+      name: googleUser.name,
+      email: googleUser.email,
+      avatarUrl: googleUser.picture,
+      isVerified: true, // Email Google sudah terverifikasi
+    },
+  });
+
+  // 3. Issue JWT access token
+  const accessToken = signAccessToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+  });
+
+  // 4. Issue refresh token (sama seperti login biasa)
+  const refreshToken = signRefreshToken({
+    sub: user.id,
+    type: "refresh",
+  });
+
+  // Simpan refresh token ke database
+  await prisma.refreshToken.create({
+    data: {
+      token: refreshToken,
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 hari
+    },
+  });
+
+  return {
+    message: "Login dengan Google berhasil",
+    accessToken,
+    refreshToken,
+  };
+}

@@ -10,6 +10,8 @@ const envSchema = z.object({
 	RESEND_API_KEY: z.string().default(""),
 	OTP_EXPIRES_MINUTES: z.coerce.number().default(5),
 	FRONTEND_URL: z.string().default("http://localhost:3000"),
+	GOOGLE_CLIENT_ID: z.string().default(""),
+	GOOGLE_CLIENT_SECRET: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { googleAuth } from "@hono/oauth-providers/google";
 import { zValidator } from "@hono/zod-validator";
 import { setCookie, getCookie, deleteCookie } from "hono/cookie";
 import { requireAuth } from "../../middleware/auth";
@@ -14,6 +15,7 @@ import {
 import {
 	changePasswordService,
 	forgotPasswordService,
+	googleCallbackService,
 	loginService,
 	logoutService,
 	refreshTokenService,
@@ -22,6 +24,8 @@ import {
 	resetPasswordService,
 	verifyEmailOtpService,
 } from "./auth.service";
+import { env } from "../../config/env";
+import { HTTPException } from "hono/http-exception";
 
 export const authRouter = new Hono()
 
@@ -151,5 +155,51 @@ export const authRouter = new Hono()
 			const body = c.req.valid("json");
 			const result = await changePasswordService(userId, body);
 			return c.json(result, 200);
+		},
+	)
+
+	.get(
+		"/google",
+		googleAuth({
+			client_id: env.GOOGLE_CLIENT_ID,
+			client_secret: env.GOOGLE_CLIENT_SECRET,
+			scope: ["openid", "email", "profile"],
+		}),
+		async (c) => {
+			const googleUser = c.get("user-google");
+
+			if (!googleUser) {
+				throw new HTTPException(400, {
+					message: "Gagal mengambil data dari Google",
+				});
+			}
+
+			const result = await googleCallbackService({
+				email: googleUser.email as string,
+				name: googleUser.name as string,
+				picture: googleUser.picture as string | undefined,
+			});
+
+			const isProduction = process.env.NODE_ENV === "production";
+
+			// Set accessToken sebagai httpOnly cookie (short-lived)
+			setCookie(c, "accessToken", result.accessToken, {
+				httpOnly: true,
+				secure: isProduction,
+				sameSite: "Lax",
+				path: "/",
+				maxAge: 60 * 15, // 15 menit
+			});
+
+			// Set refreshToken sebagai httpOnly cookie (long-lived)
+			setCookie(c, "refreshToken", result.refreshToken, {
+				httpOnly: true,
+				secure: isProduction,
+				sameSite: "Lax",
+				path: "/api/auth",
+				maxAge: 60 * 60 * 24 * 7, // 7 hari
+			});
+
+			return c.redirect(`${env.FRONTEND_URL}/dashboard`);
 		},
 	);
