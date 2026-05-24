@@ -207,6 +207,10 @@ export const authRouter = new Hono()
 				maxAge: 60 * 60 * 24 * 7, // 7 hari
 			});
 
-			return c.redirect(`${env.FRONTEND_URL}/dashboard`);
+			return c.redirect(
+				`${env.FRONTEND_URL}/auth/google/callback?success=true&message=${encodeURIComponent(
+					"Berhasil masuk dengan Google",
+				)}`,
+			);
 		},
 	);
